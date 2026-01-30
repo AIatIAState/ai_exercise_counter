@@ -16,6 +16,8 @@ from pathlib import Path
 import cv2
 import mediapipe as mp
 import numpy as np
+from mediapipe import solutions
+from mediapipe.framework.formats import landmark_pb2
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
@@ -24,9 +26,7 @@ from mediapipe.tasks.python import vision
 CONFIG VALUES
 """
 
-DEFAULT_MODEL = (
-    Path(__file__).resolve().parent / "models" / "pose_landmarker_lite.task"
-)
+DEFAULT_MODEL = (Path(__file__).resolve().parent / "models" / "pose_landmarker_lite.task")
 DEFAULT_CAMERA_INDEX = 0
 DEFAULT_DOWN_ANGLE = 90.0
 DEFAULT_UP_ANGLE = 160.0
@@ -91,107 +91,59 @@ def parse_args() -> argparse.Namespace:
 
 
 def compute_angle(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float | None:
-    if a is None or b is None or c is None:
-        return None
-    ba = a - b
-    bc = c - b
-    denom = (np.linalg.norm(ba) * np.linalg.norm(bc)) + 1e-6
-    cos_angle = float(np.dot(ba, bc) / denom)
-    cos_angle = float(np.clip(cos_angle, -1.0, 1.0))
-    return float(np.degrees(np.arccos(cos_angle)))
+    """
+    Compute the angle B of triangle ABC
+    """
+    #do smart stuff here
+    pass
 
+
+def extract_elbow_angle(world_landmarks, pose_landmarks) -> float | None:
+    pass
 
 def get_point(landmarks, index: int) -> np.ndarray | None:
     if landmarks is None or len(landmarks) <= index:
         return None
     lm = landmarks[index]
+    # hooray
     return np.array([lm.x, lm.y, lm.z], dtype=np.float32)
 
 
-def extract_elbow_angle(world_landmarks, pose_landmarks) -> float | None:
-    # Prefer 3D world landmarks, fallback to normalized 2D landmarks if needed.
-    landmarks = world_landmarks if world_landmarks else pose_landmarks
-    if not landmarks:
-        return None
 
-    left = compute_angle(
-        get_point(landmarks, PoseIdx.LEFT_SHOULDER),
-        get_point(landmarks, PoseIdx.LEFT_ELBOW),
-        get_point(landmarks, PoseIdx.LEFT_WRIST),
-    )
-    right = compute_angle(
-        get_point(landmarks, PoseIdx.RIGHT_SHOULDER),
-        get_point(landmarks, PoseIdx.RIGHT_ELBOW),
-        get_point(landmarks, PoseIdx.RIGHT_WRIST),
-    )
+def draw_pose_landmarks(image: np.ndarray, landmarks) -> None:
+    """
+    Draw "skeleton" on image
 
-    angles = [a for a in (left, right) if a is not None]
-    if not angles:
-        return None
-    return float(sum(angles) / len(angles))
-
-
-def draw_pose_landmarks(
-    image: np.ndarray, landmarks, connections=POSE_CONNECTIONS
-) -> None:
+    Adapted from MediaPipe examples online.
+    """
     if not landmarks:
         return
-    height, width = image.shape[:2]
+    pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+    pose_landmarks_proto.landmark.extend(
+        [
+            landmark_pb2.NormalizedLandmark(x=lm.x, y=lm.y, z=lm.z)
+            for lm in landmarks
+        ]
+    )
+    connection_style = solutions.drawing_utils.DrawingSpec(
+        color=(255, 255, 255), thickness=2
+    )
+    solutions.drawing_utils.draw_landmarks(
+        image,
+        pose_landmarks_proto,
+        solutions.pose.POSE_CONNECTIONS,
+        landmark_drawing_spec=solutions.drawing_styles.get_default_pose_landmarks_style(),
+        connection_drawing_spec=connection_style,
+    )
 
-    for start_idx, end_idx in connections:
-        if start_idx >= len(landmarks) or end_idx >= len(landmarks):
-            continue
-        start = landmarks[start_idx]
-        end = landmarks[end_idx]
-        x0, y0 = int(start.x * width), int(start.y * height)
-        x1, y1 = int(end.x * width), int(end.y * height)
-        cv2.line(image, (x0, y0), (x1, y1), (0, 255, 0), 2)
 
-    for lm in landmarks:
-        x, y = int(lm.x * width), int(lm.y * height)
-        cv2.circle(image, (x, y), 2, (0, 0, 255), -1)
-
-
-def annotate_frame(
-    frame: np.ndarray, result, counter: PushupCounter_FSM, angle: float | None
-) -> np.ndarray:
-    annotated = frame.copy()
-
+def annotate_frame(frame: np.ndarray, result, counter: PushupCounter_FSM, angle: float | None) -> np.ndarray:
+    annotated = frame.copy() # if we dont detect anything, just return the original frame
+    cv2.putText(annotated, "q to quit", (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (0,0,0), 2)
+    # lowkey hate this font
     if result.pose_landmarks:
         for pose_landmarks in result.pose_landmarks:
             draw_pose_landmarks(annotated, pose_landmarks)
-
-    cv2.putText(
-        annotated,
-        f"Pushups: {counter.count}",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (0, 255, 0),
-        2,
-        cv2.LINE_AA,
-    )
-    cv2.putText(
-        annotated,
-        f"State: {counter.state}",
-        (10, 65),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-    if angle is not None:
-        cv2.putText(
-            annotated,
-            f"Elbow angle: {angle:.1f}",
-            (10, 95),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 0),
-            2,
-            cv2.LINE_AA,
-        )
     return annotated
 
 
@@ -246,10 +198,10 @@ def main() -> int:
                 result.pose_landmarks[0] if result.pose_landmarks else None
             )
 
-            angle = extract_elbow_angle(world_landmarks, pose_landmarks)
-            counter.update(angle)
+            angle = extract_elbow_angle(world_landmarks, pose_landmarks) # doesnt do anything yet
+            counter.update(angle) # doesnt do anything yet
 
-            annotated = annotate_frame(frame, result, counter, angle)
+            annotated = annotate_frame(frame, result, counter, angle) # doesnt do anything yet
             cv2.imshow(WINDOW_NAME, annotated)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
