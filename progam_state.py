@@ -3,6 +3,7 @@ Holds the state of the current exercise program.
 """
 
 from exercise import PlaceholderExercise
+from exercise_jumpingjacks import JumpingJackExercise
 from exercise_pushups import PushupExercise
 
 
@@ -15,9 +16,9 @@ class ProgramState:
         "squat": (0, 0, 255),         # red
     }
     ALIASES_BY_EXERCISE = {
-        "pushup": ["pushup", "push up", "push-up"],
-        "crunch": ["crunch", "situp", "sit up", "sit-up"],
-        "plank": ["plank"],
+        "pushup": ["pushup", "push up", "push-up", "push ups", "push-ups", "pushups", "the best exercise ever"],
+        "crunch": ["crunch", "situp", "sit up", "sit-up", "sit ups", "sit-ups", "situps"],
+        "plank": ["plank", "planks", "planking"],
         "jumpingjack": ["jumpingjack", "jumping jack", "jumping jacks"],
         "squat": ["squat", "squats"],
     }
@@ -39,7 +40,7 @@ class ProgramState:
                 display_name="Plank",
                 color=self.EXERCISE_COLORS["plank"],
             ),
-            "jumpingjack": PlaceholderExercise(
+            "jumpingjack": JumpingJackExercise(
                 name="jumpingjack",
                 display_name="Jumping Jack",
                 color=self.EXERCISE_COLORS["jumpingjack"],
