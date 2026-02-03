@@ -1,5 +1,6 @@
 mediapipe==0.10.21
 opencv-python
 numpy
-faster_whisper
+faster_whisper==1.2.1
 sounddevice
+ctranslate2==4.6.0

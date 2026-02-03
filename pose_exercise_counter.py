@@ -23,6 +23,8 @@ from mediapipe.tasks.python import vision
 
 from speech.speech_recognition import SpeechToText
 
+from progam_state import ProgramState
+
 
 ####################################################
 # Constants
@@ -183,7 +185,7 @@ def get_point(landmarks, index: int) -> np.ndarray | None:
 # Visualization and main loop
 ####################################################
 
-def draw_pose_landmarks(image: np.ndarray, landmarks) -> None:
+def draw_pose_landmarks(image: np.ndarray, landmarks, color: tuple[int, int, int]) -> None:
     """
     Draw "skeleton" on image
 
@@ -198,14 +200,20 @@ def draw_pose_landmarks(image: np.ndarray, landmarks) -> None:
             for lm in landmarks
         ]
     )
+    landmark_style = solutions.drawing_utils.DrawingSpec(
+        color=color,
+        thickness=2,
+        circle_radius=2,
+    )
     connection_style = solutions.drawing_utils.DrawingSpec(
-        color=(255, 255, 255), thickness=2
+        color=color,
+        thickness=2,
     )
     solutions.drawing_utils.draw_landmarks(
         image,
         pose_landmarks_proto,
         solutions.pose.POSE_CONNECTIONS,
-        landmark_drawing_spec=solutions.drawing_styles.get_default_pose_landmarks_style(),
+        landmark_drawing_spec=landmark_style,
         connection_drawing_spec=connection_style,
     )
 
@@ -216,7 +224,7 @@ def annotate_frame(
     counter: PushupCounter_FSM,
     angle: float | None,
     side: str | None,
-    current_exercise: str
+    state: ProgramState,
 ) -> np.ndarray:
     annotated = frame.copy()
     height, width = annotated.shape[:2]
@@ -246,7 +254,7 @@ def annotate_frame(
     draw_text("q to quit", (10, 24))
     draw_text(f"Count: {counter.count}", (10, 52))
     draw_text(f"State: {counter.state}", (10, 80))
-    draw_text(f"Exercise {current_exercise}", (10, 100))
+    draw_text(f"Exercise {state.display_name}", (10, 100))
     if angle is None:
         draw_text("Elbow: --", (10, 128))
     else:
@@ -255,7 +263,7 @@ def annotate_frame(
 
     if result.pose_landmarks:
         for pose_landmarks in result.pose_landmarks:
-            draw_pose_landmarks(annotated, pose_landmarks)
+            draw_pose_landmarks(annotated, pose_landmarks, state.skeleton_color)
 
         if angle is not None and side is not None:
             pose_landmarks = result.pose_landmarks[0]
@@ -276,14 +284,10 @@ def open_capture(args: argparse.Namespace) -> cv2.VideoCapture:
         return cv2.VideoCapture(args.video)
     return cv2.VideoCapture(DEFAULT_CAMERA_INDEX)
 
-def exercise_selection(speech_model, exercises, current_exercise):
+def exercise_selection(speech_model, state: ProgramState) -> None:
     transcript = speech_model.get_transcription().lower()
-    for exercise in exercises:
-        if ((exercise in transcript) or
-        (exercise.replace('-', ' ') in transcript)):
-            speech_model.clear_transcript()
-            return exercise
-    return current_exercise
+    if state.update_from_transcript(transcript):
+        speech_model.clear_transcript()
 
 def main() -> int:
     args = parse_args()
@@ -298,10 +302,9 @@ def main() -> int:
         print("Failed to open video source.")
         return 2
 
-    exercises = ["push-up", "sit-up", "plank", "jumping jack"]
-    speech_model = SpeechToText(exercises, model_size="base")
+    state = ProgramState(current_exercise="pushup") # default to pushup
+    speech_model = SpeechToText(state.prompt_terms(), model_size="base")
     speech_model.start_stream()
-    current_exercise = "push-up"
 
     options = vision.PoseLandmarkerOptions(
         base_options=python.BaseOptions(model_asset_path=str(model_path)),
@@ -312,7 +315,7 @@ def main() -> int:
         min_tracking_confidence=DEFAULT_MIN_TRACKING,
     )
 
-    counter = PushupCounter_FSM()
+    counter = PushupCounter_FSM() # eventually will need to have the FSM selected on state
 
     with vision.PoseLandmarker.create_from_options(options) as landmarker:
         while True:
@@ -320,7 +323,7 @@ def main() -> int:
             if not success:
                 break
 
-            current_exercise = exercise_selection(speech_model, exercises, current_exercise)
+            exercise_selection(speech_model, state)
 
             timestamp_ms = int(time.time() * 1000)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -340,7 +343,7 @@ def main() -> int:
             angle, side = extract_elbow_angle(world_landmarks, pose_landmarks)
             counter.update(angle)
 
-            annotated = annotate_frame(frame, result, counter, angle, side, current_exercise)
+            annotated = annotate_frame(frame, result, counter, angle, side, state)
             cv2.imshow(WINDOW_NAME, annotated)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
