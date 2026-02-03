@@ -21,6 +21,8 @@ from mediapipe.framework.formats import landmark_pb2
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
+from speech.speech_recognition import SpeechToText
+
 
 ####################################################
 # Constants
@@ -214,6 +216,7 @@ def annotate_frame(
     counter: PushupCounter_FSM,
     angle: float | None,
     side: str | None,
+    current_exercise: str
 ) -> np.ndarray:
     annotated = frame.copy()
     height, width = annotated.shape[:2]
@@ -243,11 +246,12 @@ def annotate_frame(
     draw_text("q to quit", (10, 24))
     draw_text(f"Count: {counter.count}", (10, 52))
     draw_text(f"State: {counter.state}", (10, 80))
+    draw_text(f"Exercise {current_exercise}", (10, 100))
     if angle is None:
-        draw_text("Elbow: --", (10, 108))
+        draw_text("Elbow: --", (10, 128))
     else:
         side_label = f" ({side})" if side else ""
-        draw_text(f"Elbow: {angle:.1f}°{side_label}", (10, 108))
+        draw_text(f"Elbow: {angle:.1f}°{side_label}", (10, 128))
 
     if result.pose_landmarks:
         for pose_landmarks in result.pose_landmarks:
@@ -272,6 +276,14 @@ def open_capture(args: argparse.Namespace) -> cv2.VideoCapture:
         return cv2.VideoCapture(args.video)
     return cv2.VideoCapture(DEFAULT_CAMERA_INDEX)
 
+def exercise_selection(speech_model, exercises, current_exercise):
+    transcript = speech_model.get_transcription().lower()
+    for exercise in exercises:
+        if ((exercise in transcript) or
+        (exercise.replace('-', ' ') in transcript)):
+            speech_model.clear_transcript()
+            return exercise
+    return current_exercise
 
 def main() -> int:
     args = parse_args()
@@ -285,6 +297,11 @@ def main() -> int:
     if not cap.isOpened():
         print("Failed to open video source.")
         return 2
+
+    exercises = ["push-up", "sit-up", "plank", "jumping jack"]
+    speech_model = SpeechToText(exercises, model_size="base")
+    speech_model.start_stream()
+    current_exercise = "push-up"
 
     options = vision.PoseLandmarkerOptions(
         base_options=python.BaseOptions(model_asset_path=str(model_path)),
@@ -302,6 +319,8 @@ def main() -> int:
             success, frame = cap.read()
             if not success:
                 break
+
+            current_exercise = exercise_selection(speech_model, exercises, current_exercise)
 
             timestamp_ms = int(time.time() * 1000)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -321,7 +340,7 @@ def main() -> int:
             angle, side = extract_elbow_angle(world_landmarks, pose_landmarks)
             counter.update(angle)
 
-            annotated = annotate_frame(frame, result, counter, angle, side)
+            annotated = annotate_frame(frame, result, counter, angle, side, current_exercise)
             cv2.imshow(WINDOW_NAME, annotated)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
