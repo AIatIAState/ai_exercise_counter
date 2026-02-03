@@ -41,7 +41,7 @@ class SpeechToText:
                         audio,
                         beam_size=1,
                         language="en",
-                        initial_prompt=f"Fitness exercise session. Terms include {" , ".join(self.exercises)}. The speaker may be counting repetitions and naming exercises.",
+                        initial_prompt=f"Fitness exercise session. Terms include {', '.join(self.exercises)}. The speaker may be counting repetitions and naming exercises.",
                         vad_filter=True,
                         vad_parameters=dict(min_silence_duration_ms=300),
                     )
