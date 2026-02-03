@@ -3,7 +3,7 @@ Holds the state of the current exercise program.
 """
 
 from exercise import PlaceholderExercise
-from pushups import PushupExercise
+from exercise_pushups import PushupExercise
 
 
 class ProgramState:
