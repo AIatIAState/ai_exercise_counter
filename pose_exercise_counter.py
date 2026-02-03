@@ -32,51 +32,11 @@ from progam_state import ProgramState
 
 DEFAULT_MODEL = (Path(__file__).resolve().parent / "models" / "pose_landmarker_lite.task")
 DEFAULT_CAMERA_INDEX = 0
-DEFAULT_DOWN_ANGLE = 100.0 # these worked for mason
-DEFAULT_UP_ANGLE = 140.0   # these worked for mason
 DEFAULT_MAX_POSES = 1
 DEFAULT_MIN_DETECTION = 0.5
 DEFAULT_MIN_PRESENCE = 0.5
 DEFAULT_MIN_TRACKING = 0.5
-DEFAULT_MIN_VISIBILITY = 0.4
 WINDOW_NAME = "Pose 3D - Pushup Counter"
-
-####################################################
-# Pose landmark indices
-####################################################
-class PoseIdx:
-    LEFT_SHOULDER = 11
-    RIGHT_SHOULDER = 12
-    LEFT_ELBOW = 13
-    RIGHT_ELBOW = 14
-    LEFT_WRIST = 15
-    RIGHT_WRIST = 16
-
-####################################################
-# Main pushup counter - Finite State Machine
-####################################################
-class PushupCounter_FSM:
-    """
-    Finite State Machine (FSM) for counting pushups based on elbow angle.
-    States: UP and DONW. When above or below certain angle thresholds, it transitions.
-    """
-    def __init__(self, down_angle: float = DEFAULT_DOWN_ANGLE, up_angle: float = DEFAULT_UP_ANGLE,) -> None:
-        self.down_angle = down_angle
-        self.up_angle = up_angle
-        self.count = 0
-        self.state = "up"
-        self.last_angle: float | None = None
-
-    def update(self, angle: float | None) -> None:
-        if angle is None:
-            return
-        self.last_angle = angle
-        if self.state == "up" and angle < self.down_angle:
-            self.state = "down"
-        elif self.state == "down" and angle > self.up_angle:
-            self.state = "up"
-            self.count += 1
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="3D pose tracking + pushup counter using MediaPipe Pose Landmarker.")
@@ -94,92 +54,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
-def compute_angle(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float | None:
-    """
-    Compute the angle B of triangle ABC
-    """
-    if a is None or b is None or c is None:
-        return None
-    ba = a - b
-    bc = c - b
-    norm_ba = np.linalg.norm(ba)
-    norm_bc = np.linalg.norm(bc)
-    if norm_ba < 1e-6 or norm_bc < 1e-6:
-        return None
-    cos_angle = float(np.dot(ba, bc) / (norm_ba * norm_bc))
-    cos_angle = float(np.clip(cos_angle, -1.0, 1.0))
-    # I hate that I had a lin alg quiz on a snow day of this exact problem and now i finally used it.
-    return float(np.degrees(np.arccos(cos_angle)))
-
-####################################################
-# Helper functions for visibility checks
-####################################################
-def _visibility(landmarks, index: int) -> float:
-    if landmarks is None or len(landmarks) <= index:
-        return 0.0
-    lm = landmarks[index]
-    visibility = getattr(lm, "visibility", 1.0)
-    presence = getattr(lm, "presence", 1.0)
-    try:
-        return float(visibility) * float(presence)
-    except (TypeError, ValueError):
-        return float(visibility)
-
-
-def _side_visibility(landmarks, indices: tuple[int, int, int]) -> float:
-    return min(_visibility(landmarks, idx) for idx in indices)
-
-####################################################
-# Elbow angle calculation
-####################################################
-
-def extract_elbow_angle(world_landmarks, pose_landmarks) -> tuple[float | None, str | None]:
-    angle_landmarks = world_landmarks if world_landmarks is not None else pose_landmarks
-    if angle_landmarks is None:
-        return None, None
-
-    left_vis = _side_visibility(
-        pose_landmarks,
-        (PoseIdx.LEFT_SHOULDER, PoseIdx.LEFT_ELBOW, PoseIdx.LEFT_WRIST),
-    ) if pose_landmarks is not None else 0.0
-    right_vis = _side_visibility(
-        pose_landmarks,
-        (PoseIdx.RIGHT_SHOULDER, PoseIdx.RIGHT_ELBOW, PoseIdx.RIGHT_WRIST),
-    ) if pose_landmarks is not None else 0.0
-
-    left_angle = compute_angle(
-        get_point(angle_landmarks, PoseIdx.LEFT_SHOULDER),
-        get_point(angle_landmarks, PoseIdx.LEFT_ELBOW),
-        get_point(angle_landmarks, PoseIdx.LEFT_WRIST),
-    )
-    right_angle = compute_angle(
-        get_point(angle_landmarks, PoseIdx.RIGHT_SHOULDER),
-        get_point(angle_landmarks, PoseIdx.RIGHT_ELBOW),
-        get_point(angle_landmarks, PoseIdx.RIGHT_WRIST),
-    )
-
-    candidates = []
-    if left_angle is not None:
-        candidates.append(("left", left_angle, left_vis))
-    if right_angle is not None:
-        candidates.append(("right", right_angle, right_vis))
-    if not candidates:
-        return None, None
-
-    candidates.sort(
-        key=lambda item: (item[2] >= DEFAULT_MIN_VISIBILITY, item[2]),
-        reverse=True,
-    )
-    side, angle, _ = candidates[0]
-    return angle, side
-
-def get_point(landmarks, index: int) -> np.ndarray | None:
-    if landmarks is None or len(landmarks) <= index:
-        return None
-    lm = landmarks[index]
-    # hooray
-    return np.array([lm.x, lm.y, lm.z], dtype=np.float32)
 
 ####################################################
 # Visualization and main loop
@@ -221,14 +95,10 @@ def draw_pose_landmarks(image: np.ndarray, landmarks, color: tuple[int, int, int
 def annotate_frame(
     frame: np.ndarray,
     result,
-    counter: PushupCounter_FSM,
-    angle: float | None,
-    side: str | None,
     state: ProgramState,
+    pose_landmarks,
 ) -> np.ndarray:
     annotated = frame.copy()
-    height, width = annotated.shape[:2]
-
     def draw_text(text: str, origin: tuple[int, int]) -> None:
         cv2.putText(
             annotated,
@@ -252,29 +122,12 @@ def annotate_frame(
         )
 
     draw_text("q to quit", (10, 24))
-    draw_text(f"Count: {counter.count}", (10, 52))
-    draw_text(f"State: {counter.state}", (10, 80))
-    draw_text(f"Exercise {state.display_name}", (10, 100))
-    if angle is None:
-        draw_text("Elbow: --", (10, 128))
-    else:
-        side_label = f" ({side})" if side else ""
-        draw_text(f"Elbow: {angle:.1f}°{side_label}", (10, 128))
 
     if result.pose_landmarks:
-        for pose_landmarks in result.pose_landmarks:
-            draw_pose_landmarks(annotated, pose_landmarks, state.skeleton_color)
+        for landmarks in result.pose_landmarks:
+            draw_pose_landmarks(annotated, landmarks, state.skeleton_color)
 
-        if angle is not None and side is not None:
-            pose_landmarks = result.pose_landmarks[0]
-            elbow_index = (
-                PoseIdx.LEFT_ELBOW if side == "left" else PoseIdx.RIGHT_ELBOW
-            )
-            if len(pose_landmarks) > elbow_index:
-                elbow = pose_landmarks[elbow_index]
-                elbow_x = int(elbow.x * width)
-                elbow_y = int(elbow.y * height)
-                draw_text(f"{angle:.0f}°", (elbow_x + 8, elbow_y - 8))
+    state.current_exercise.printExerciseDetailsToScreen(annotated, pose_landmarks)
 
     return annotated
 
@@ -315,8 +168,6 @@ def main() -> int:
         min_tracking_confidence=DEFAULT_MIN_TRACKING,
     )
 
-    counter = PushupCounter_FSM() # eventually will need to have the FSM selected on state
-
     with vision.PoseLandmarker.create_from_options(options) as landmarker:
         while True:
             success, frame = cap.read()
@@ -340,10 +191,9 @@ def main() -> int:
                 result.pose_landmarks[0] if result.pose_landmarks else None
             )
 
-            angle, side = extract_elbow_angle(world_landmarks, pose_landmarks)
-            counter.update(angle)
+            state.current_exercise.update(world_landmarks, pose_landmarks)
 
-            annotated = annotate_frame(frame, result, counter, angle, side, state)
+            annotated = annotate_frame(frame, result, state, pose_landmarks)
             cv2.imshow(WINDOW_NAME, annotated)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
