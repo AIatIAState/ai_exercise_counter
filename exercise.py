@@ -5,6 +5,7 @@ Each exercise needs:
 - getCount(): return the current repetition count
 - update(world_landmarks, pose_landmarks): update internal state based on new pose data
 - printExerciseDetailsToScreen(frame, pose_landmarks): overlay exercise-specific info on video frame
+- visibility_ok(): return whether the key landmarks for this exercise are visible, throws universal warning if not
 """
 
 
