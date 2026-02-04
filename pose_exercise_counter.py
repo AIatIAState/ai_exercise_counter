@@ -59,7 +59,12 @@ def parse_args() -> argparse.Namespace:
 # Visualization and main loop
 ####################################################
 
-def draw_pose_landmarks(image: np.ndarray, landmarks, color: tuple[int, int, int]) -> None:
+def draw_pose_landmarks(
+    image: np.ndarray,
+    landmarks,
+    color: tuple[int, int, int],
+    required_indices: set[int],
+) -> None:
     """
     Draw "skeleton" on image
 
@@ -74,6 +79,26 @@ def draw_pose_landmarks(image: np.ndarray, landmarks, color: tuple[int, int, int
             for lm in landmarks
         ]
     )
+    if not required_indices:
+        return
+
+    valid_indices = [idx for idx in sorted(required_indices) if idx < len(landmarks)]
+    if not valid_indices:
+        return
+
+    index_map = {idx: new_idx for new_idx, idx in enumerate(valid_indices)}
+    filtered_proto = landmark_pb2.NormalizedLandmarkList()
+    filtered_proto.landmark.extend(
+        [
+            landmark_pb2.NormalizedLandmark(
+                x=landmarks[idx].x,
+                y=landmarks[idx].y,
+                z=landmarks[idx].z,
+            )
+            for idx in valid_indices
+        ]
+    )
+
     landmark_style = solutions.drawing_utils.DrawingSpec(
         color=color,
         thickness=2,
@@ -83,10 +108,18 @@ def draw_pose_landmarks(image: np.ndarray, landmarks, color: tuple[int, int, int
         color=color,
         thickness=2,
     )
+    connections = [
+        (index_map[a], index_map[b])
+        for (a, b) in solutions.pose.POSE_CONNECTIONS
+        if a in index_map and b in index_map
+    ]
+    if not connections:
+        return
+
     solutions.drawing_utils.draw_landmarks(
         image,
-        pose_landmarks_proto,
-        solutions.pose.POSE_CONNECTIONS,
+        filtered_proto,
+        connections,
         landmark_drawing_spec=landmark_style,
         connection_drawing_spec=connection_style,
     )
@@ -123,12 +156,13 @@ def annotate_frame(
 
     draw_text("q to quit", (10, 24))
 
-    if result.pose_landmarks:
+    required_indices = state.current_exercise.required_landmarks()
+    if result.pose_landmarks and required_indices:
         for landmarks in result.pose_landmarks:
-            draw_pose_landmarks(annotated, landmarks, state.skeleton_color)
+            draw_pose_landmarks(annotated, landmarks, state.skeleton_color, required_indices)
 
     if not state.current_exercise.visibility_ok():
-        warning_text = "ensure whole body is in frame"
+        warning_text = "ensure body is in frame"
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.8
         thickness = 2

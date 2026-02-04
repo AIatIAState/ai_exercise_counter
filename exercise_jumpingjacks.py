@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Set
 
 import numpy as np
 
@@ -318,3 +319,21 @@ class JumpingJackExercise(Exercise):
         else:
             hand_text = f"Hands dist: {telemetry.hand_distance:.3f}"
         self._draw_text(frame, hand_text, (right_x, y), align_right=True)
+
+    def required_landmarks(self) -> Set[int]:
+        return {
+            PoseIdx.LEFT_SHOULDER,
+            PoseIdx.RIGHT_SHOULDER,
+            PoseIdx.LEFT_ELBOW,
+            PoseIdx.RIGHT_ELBOW,
+            PoseIdx.LEFT_WRIST,
+            PoseIdx.RIGHT_WRIST,
+            PoseIdx.LEFT_HIP,
+            PoseIdx.RIGHT_HIP,
+            PoseIdx.LEFT_KNEE,
+            PoseIdx.RIGHT_KNEE,
+            PoseIdx.LEFT_ANKLE,
+            PoseIdx.RIGHT_ANKLE,
+            PoseIdx.LEFT_EYE,
+            PoseIdx.RIGHT_EYE,
+        }
