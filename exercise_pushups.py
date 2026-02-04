@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Set
 
 import numpy as np
 
@@ -8,7 +9,7 @@ from exercise import Exercise
 
 DEFAULT_DOWN_ANGLE = 100.0
 DEFAULT_UP_ANGLE = 140.0
-DEFAULT_MIN_VISIBILITY = 0.4
+DEFAULT_MIN_VISIBILITY = 0.3
 
 
 class PoseIdx:
@@ -18,7 +19,8 @@ class PoseIdx:
     RIGHT_ELBOW = 14
     LEFT_WRIST = 15
     RIGHT_WRIST = 16
-
+    LEFT_HIP = 23
+    RIGHT_HIP = 24
 
 class PushupCounterFSM:
     """
@@ -193,12 +195,34 @@ class PushupExercise(Exercise): # PushupExercise is child of Exercise
         super().__init__(name=name, display_name=display_name, color=color)
         self._counter = PushupCounter(down_angle=down_angle, up_angle=up_angle)
         self._telemetry = PushupTelemetry(angle=None, side=None, elbow_index=None)
+        self._last_pose_landmarks = None
 
     def update(self, world_landmarks, pose_landmarks) -> None:
+        self._last_pose_landmarks = pose_landmarks
         self._telemetry = self._counter.update(world_landmarks, pose_landmarks)
 
     def getCount(self) -> int:
         return self._counter.count
+
+    def visibility_ok(self) -> bool:
+        if self._last_pose_landmarks is None:
+            return False
+        left_ok = _side_visibility(
+            self._last_pose_landmarks,
+            (PoseIdx.LEFT_SHOULDER, PoseIdx.LEFT_ELBOW, PoseIdx.LEFT_WRIST),
+        ) >= DEFAULT_MIN_VISIBILITY
+        right_ok = _side_visibility(
+            self._last_pose_landmarks,
+            (PoseIdx.RIGHT_SHOULDER, PoseIdx.RIGHT_ELBOW, PoseIdx.RIGHT_WRIST),
+        ) >= DEFAULT_MIN_VISIBILITY
+
+        all_ok = True
+        for idx in self.required_landmarks():
+            if _visibility(self._last_pose_landmarks, idx) < DEFAULT_MIN_VISIBILITY:
+                all_ok = False
+                break
+
+        return left_ok or right_ok or all_ok
 
     def printExerciseDetailsToScreen(self, frame: np.ndarray, pose_landmarks=None) -> None:
         height, width = frame.shape[:2]
@@ -228,3 +252,15 @@ class PushupExercise(Exercise): # PushupExercise is child of Exercise
             elbow_x = int(elbow.x * width)
             elbow_y = int(elbow.y * height)
             self._draw_text(frame, f"{self._telemetry.angle:.0f} deg", (elbow_x + 8, elbow_y - 8))
+
+    def required_landmarks(self) -> Set[int]:
+        return {
+            PoseIdx.LEFT_SHOULDER,
+            PoseIdx.RIGHT_SHOULDER,
+            PoseIdx.LEFT_ELBOW,
+            PoseIdx.RIGHT_ELBOW,
+            PoseIdx.LEFT_WRIST,
+            PoseIdx.RIGHT_WRIST,
+            PoseIdx.LEFT_HIP,
+            PoseIdx.RIGHT_HIP,
+        }

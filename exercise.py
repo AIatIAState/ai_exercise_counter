@@ -5,7 +5,8 @@ Each exercise needs:
 - getCount(): return the current repetition count
 - update(world_landmarks, pose_landmarks): update internal state based on new pose data
 - printExerciseDetailsToScreen(frame, pose_landmarks): overlay exercise-specific info on video frame
-- visibility_ok(): return whether the key landmarks for this exercise are visible, throws universal warning if not
+- visibility_ok(): return whether required landmarks are visible enough
+- required_landmarks(): return set of landmark indices required for this exercise
 """
 
 
@@ -13,6 +14,7 @@ Each exercise needs:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Set
 
 import cv2
 import numpy as np
@@ -37,6 +39,10 @@ class Exercise(ABC):
 
     @abstractmethod
     def printExerciseDetailsToScreen(self, frame: np.ndarray, pose_landmarks=None) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def required_landmarks(self) -> Set[int]:
         raise NotImplementedError
 
     def visibility_ok(self) -> bool:
@@ -77,3 +83,6 @@ class PlaceholderExercise(Exercise):
         self._draw_text(frame, self.display_name, (right_x, y), align_right=True)
         y += 24
         self._draw_text(frame, "Not implemented", (right_x, y), align_right=True)
+
+    def required_landmarks(self) -> Set[int]:
+        return set()
