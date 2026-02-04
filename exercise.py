@@ -38,6 +38,9 @@ class Exercise(ABC):
     def printExerciseDetailsToScreen(self, frame: np.ndarray, pose_landmarks=None) -> None:
         raise NotImplementedError
 
+    def visibility_ok(self) -> bool:
+        return True
+
     # Helper method to draw text on frame in standardized way
     def _draw_text(
         self,

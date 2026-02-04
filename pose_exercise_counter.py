@@ -127,6 +127,38 @@ def annotate_frame(
         for landmarks in result.pose_landmarks:
             draw_pose_landmarks(annotated, landmarks, state.skeleton_color)
 
+    if not state.current_exercise.visibility_ok():
+        warning_text = "ensure whole body is in frame"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.8
+        thickness = 2
+        (text_width, text_height), _ = cv2.getTextSize(
+            warning_text, font, font_scale, thickness
+        )
+        pad_x = 16
+        pad_y = 10
+        box_width = text_width + pad_x * 2
+        box_height = text_height + pad_y * 2
+        center_x = annotated.shape[1] // 2
+        center_y = annotated.shape[0] // 2
+        x1 = int(center_x - box_width / 2)
+        y1 = int(center_y - box_height / 2)
+        x2 = int(center_x + box_width / 2)
+        y2 = int(center_y + box_height / 2)
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 255), -1)
+        text_x = int(center_x - text_width / 2)
+        text_y = int(center_y + text_height / 2)
+        cv2.putText(
+            annotated,
+            warning_text,
+            (text_x, text_y),
+            font,
+            font_scale,
+            (0, 0, 0),
+            thickness,
+            cv2.LINE_AA,
+        )
+
     state.current_exercise.printExerciseDetailsToScreen(annotated, pose_landmarks)
 
     return annotated
@@ -155,7 +187,7 @@ def main() -> int:
         print("Failed to open video source.")
         return 2
 
-    state = ProgramState(current_exercise="pushup") # default to pushup
+    state = ProgramState(current_exercise="pushup") # default to jumpingjacks
     speech_model = SpeechToText(state.prompt_terms(), model_size="base")
     speech_model.start_stream()
 
