@@ -4,3 +4,4 @@ numpy
 faster_whisper==1.2.1
 sounddevice
 ctranslate2==4.6.0
+setuptools<81
