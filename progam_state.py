@@ -5,6 +5,7 @@ Holds the state of the current exercise program.
 from exercise import PlaceholderExercise
 from exercise_jumpingjacks import JumpingJackExercise
 from exercise_pushups import PushupExercise
+from exercise_squats import SquatExercise
 
 
 class ProgramState:
@@ -45,7 +46,7 @@ class ProgramState:
                 display_name="Jumping Jack",
                 color=self.EXERCISE_COLORS["jumpingjack"],
             ),
-            "squat": PlaceholderExercise(
+            "squat": SquatExercise(
                 name="squat",
                 display_name="Squat",
                 color=self.EXERCISE_COLORS["squat"],
