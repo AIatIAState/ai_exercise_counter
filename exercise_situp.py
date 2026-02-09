@@ -110,14 +110,6 @@ class SitUpCounter:
         left_ankle = _get_landmark(pose_landmarks, PoseIdx.LEFT_ANKLE)
         right_ankle = _get_landmark(pose_landmarks, PoseIdx.RIGHT_ANKLE)
 
-        left_shoulder_xy = _get_xy(pose_landmarks, PoseIdx.LEFT_SHOULDER)
-        right_shoulder_xy = _get_xy(pose_landmarks, PoseIdx.RIGHT_SHOULDER)
-        left_hip_xy = _get_xy(pose_landmarks, PoseIdx.LEFT_HIP)
-        right_hip_xy = _get_xy(pose_landmarks, PoseIdx.RIGHT_HIP)
-        left_knee_xy = _get_xy(pose_landmarks, PoseIdx.LEFT_KNEE)
-        right_knee_xy = _get_xy(pose_landmarks, PoseIdx.RIGHT_KNEE)
-        left_ankle_xy = _get_xy(pose_landmarks, PoseIdx.LEFT_ANKLE)
-        right_ankle_xy = _get_xy(pose_landmarks, PoseIdx.RIGHT_ANKLE)
 
         # Make sure all needed key points are visible
         if (
@@ -139,7 +131,6 @@ class SitUpCounter:
             return self.telemetry
 
 
-        print(f"ANKLE: {left_ankle.y}    HIP: {left_hip.y}      KNEE: {left_knee.y}")
         on_ground = (left_ankle.y >= left_knee.y and left_hip.y >= left_knee.y) and (right_ankle.y >= right_knee.y and right_hip.y >= right_knee.y)
         height_of_knees = max(left_hip.y - left_knee.y, right_hip.y - left_knee.y)
         height_of_shoulders = max(left_hip.y - left_hip.y, right_hip.y - right_shoulder.y)
