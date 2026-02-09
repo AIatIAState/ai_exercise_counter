@@ -5,20 +5,21 @@ Holds the state of the current exercise program.
 from exercise import PlaceholderExercise
 from exercise_jumpingjacks import JumpingJackExercise
 from exercise_pushups import PushupExercise
+from exercise_situp import SitUpExercise
 from exercise_squats import SquatExercise
 
 
 class ProgramState:
     EXERCISE_COLORS = {
         "pushup": (0, 128, 255),      # orange
-        "crunch": (255, 0, 255),      # magenta
+        "situp": (255, 0, 255),      # magenta
         "plank": (0, 255, 0),         # green
         "jumpingjack": (255, 255, 0), # cyan
         "squat": (0, 0, 255),         # red
     }
     ALIASES_BY_EXERCISE = {
         "pushup": ["pushup", "push up", "push-up", "push ups", "push-ups", "pushups", "the best exercise ever"],
-        "crunch": ["crunch", "situp", "sit up", "sit-up", "sit ups", "sit-ups", "situps"],
+        "situp": ["crunch", "situp", "sit up", "sit-up", "sit ups", "sit-ups", "situps"],
         "plank": ["plank", "planks", "planking"],
         "jumpingjack": ["jumpingjack", "jumping jack", "jumping jacks"],
         "squat": ["squat", "squats"],
@@ -31,10 +32,10 @@ class ProgramState:
                 display_name="Pushup",
                 color=self.EXERCISE_COLORS["pushup"],
             ),
-            "crunch": PlaceholderExercise(
-                name="crunch",
-                display_name="Crunch",
-                color=self.EXERCISE_COLORS["crunch"],
+            "situp": SitUpExercise(
+                name="situp",
+                display_name="Situp",
+                color=self.EXERCISE_COLORS["situp"],
             ),
             "plank": PlaceholderExercise(
                 name="plank",
