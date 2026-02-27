@@ -5,6 +5,7 @@ Holds the state of the current exercise program.
 from exercise import PlaceholderExercise
 from exercise_jumpingjacks import JumpingJackExercise
 from exercise_leg_raises import LegRaiseExercise
+from exercise_pullups import PullupExercise
 from exercise_pushups import PushupExercise
 from exercise_situp import SitUpExercise
 from exercise_squats import SquatExercise
@@ -17,7 +18,8 @@ class ProgramState:
         "plank": (0, 255, 0),         # green
         "jumpingjack": (255, 255, 0), # cyan
         "squat": (0, 0, 255),         # red
-        "leg_raises": (255, 0, 230)  # pink
+        "leg_raises": (230, 0, 255),  # pink
+        "pullup": (255, 0, 0)        # blue
     }
     ALIASES_BY_EXERCISE = {
         "pushup": ["pushup", "push up", "push-up", "push ups", "push-ups", "pushups", "the best exercise ever"],
@@ -25,7 +27,8 @@ class ProgramState:
         "plank": ["plank", "planks", "planking"],
         "jumpingjack": ["jumpingjack", "jumping jack", "jumping jacks"],
         "squat": ["squat", "squats"],
-        "leg_raises": ["leg raise", "leg raises", "leg raising"]
+        "leg_raises": ["leg raise", "leg raises", "leg raising"],
+        "pullup": ["pullup", "pullups", "pull up", "pull ups", "pull-up", "pull-ups"]
     }
 
     def __init__(self, current_exercise: str = "pushup") -> None:
@@ -59,6 +62,11 @@ class ProgramState:
                 name="leg_raises",
                 display_name="Leg Raises",
                 color=self.EXERCISE_COLORS["leg_raises"]
+            ),
+            "pullup": PullupExercise(
+                name="pullup",
+                display_name="Pull-ups",
+                color=self.EXERCISE_COLORS["pullup"]
             )
         }
 
