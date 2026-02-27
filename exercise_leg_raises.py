@@ -7,9 +7,10 @@ import numpy as np
 
 from exercise import Exercise
 
-DEFAULT_VISIBILITY_THRESHOLD = .2
-DEFAULT_UPPER_TO_LOWER_LEG_RATIO = .8
-
+DEFAULT_VISIBILITY_THRESHOLD = 0.60
+DEFAULT_LEGS_ABOVE_HIPS_RATIO = .6
+DEFAULT_STRAIGHT_LEGS_RATIO = .8
+EPSILON = 1e-4
 
 class PoseIdx:
     LEFT_HIP = 23
@@ -21,10 +22,9 @@ class PoseIdx:
 
 
 @dataclass(frozen=True)
-class SquatTelemetry:
+class LegRaiseTelemetry:
     state: str
-    hips_above_knee: bool
-    hips_bologna: bool
+    legs_above_hips_ratio: float
     legs_straight_ratio: float
     visibility_ok: bool
 
@@ -61,7 +61,7 @@ def _get_xy(landmarks, index: int) -> np.ndarray | None:
     return np.array([lm.x, lm.y], dtype=np.float32)
 
 
-class SquatCounter:
+class LegRaiseCounter:
     def __init__(
         self,
         visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
@@ -69,15 +69,14 @@ class SquatCounter:
         self.visibility_threshold = visibility_threshold
         self.count = 0
         self.state = "init"
-        self.telemetry = SquatTelemetry(
+        self.telemetry = LegRaiseTelemetry(
             state=self.state,
-            legs_straight_ratio=0,
+            legs_above_hips_ratio=0,
             visibility_ok=False,
-            hips_bologna=False,
-            hips_above_knee=False,
+            legs_straight_ratio=0
         )
 
-    def update(self, pose_landmarks) -> SquatTelemetry:
+    def update(self, pose_landmarks) -> LegRaiseTelemetry:
         required = (
             PoseIdx.LEFT_HIP,
             PoseIdx.RIGHT_HIP,
@@ -92,12 +91,11 @@ class SquatCounter:
         )
 
         if not visibility_ok:
-            self.telemetry = SquatTelemetry(
+            self.telemetry = LegRaiseTelemetry(
                 state=self.state,
-                legs_straight_ratio=0,
                 visibility_ok=False,
-                hips_bologna=False,
-                hips_above_knee=False,
+                legs_above_hips_ratio=0,
+                legs_straight_ratio=0
             )
             return self.telemetry
 
@@ -116,57 +114,64 @@ class SquatCounter:
             or left_ankle is None
             or right_ankle is None
         ):
-            self.telemetry = SquatTelemetry(
+            self.telemetry = LegRaiseTelemetry(
                 state=self.state,
-                legs_straight_ratio=0,
                 visibility_ok=False,
-                hips_bologna=False,
-                hips_above_knee=False,
+                legs_above_hips_ratio=0,
+                legs_straight_ratio=0
             )
             return self.telemetry
 
 
-        # Starting State --> Fully Standing --> Hips Below Knees --> Fully Standing --> Increment Count --> BOHICA
-        knees_above_feet = left_knee.y < left_ankle.y and right_knee.y < right_ankle.y
-        hips_above_knees = left_hip.y < left_knee.y and right_hip.y < right_knee.y
-        hips_below_knees = left_hip.y >= left_knee.y and right_hip.y >= right_knee.y
-        upper_left_leg_length = left_knee.y - left_hip.y
-        upper_right_leg_length = right_knee.y - right_hip.y
-        lower_left_leg_length = left_ankle.y - left_knee.y
-        lower_right_leg_length = right_ankle.y - right_knee.y
-        if not (knees_above_feet and hips_above_knees):
-            legs_straight_ratio = 0
-        else:
-            legs_straight_ratio = min(upper_left_leg_length / lower_left_leg_length, upper_right_leg_length / lower_right_leg_length)
+        # Starting State --> Straight Legs --> Knees above hips --> Increment Count --> BOHICA
+        left_lower_leg = abs(left_ankle.y - left_knee.y)
+        right_lower_leg = abs(right_ankle.y - right_knee.y)
+        left_upper_leg = abs(left_knee.y - left_hip.y)
+        right_upper_leg = abs(right_knee.y - right_hip.y)
+        left_lower_leg_above_hip = max(left_hip.y - left_knee.y,0)
+        right_lower_leg_above_hip = max(right_hip.y - right_knee.y,0)
 
-        if self.state == "init" and legs_straight_ratio > DEFAULT_UPPER_TO_LOWER_LEG_RATIO:
-            self.state = "up"
-        elif self.state == "down" and legs_straight_ratio > DEFAULT_UPPER_TO_LOWER_LEG_RATIO:
+        legs_above_hips_ratio = min(left_lower_leg_above_hip / left_lower_leg, right_lower_leg_above_hip / right_lower_leg)
+        legs_straight_ratio = min(right_upper_leg / right_lower_leg, left_upper_leg / left_lower_leg)
+        knees_below_hips = left_knee.y > left_hip.y and right_knee.y > right_hip.y
+
+        #Check for state transition (where left_upper leg y distance is almost 0)
+        if left_upper_leg < EPSILON or right_upper_leg < EPSILON:
+            self.telemetry = LegRaiseTelemetry(
+                state = self.state,
+                visibility_ok=True,
+                legs_above_hips_ratio=self.telemetry.legs_above_hips_ratio,
+                legs_straight_ratio=self.telemetry.legs_straight_ratio
+            )
+            return self.telemetry
+
+        if self.state == "init" and legs_straight_ratio > DEFAULT_STRAIGHT_LEGS_RATIO and knees_below_hips:
+            self.state = "down"
+        elif self.state == "down" and legs_above_hips_ratio > DEFAULT_LEGS_ABOVE_HIPS_RATIO:
             self.state = "up"
             self.count += 1
-        elif self.state == "up" and hips_below_knees:
+        elif self.state == "up" and legs_straight_ratio > DEFAULT_STRAIGHT_LEGS_RATIO and knees_below_hips:
             self.state = "down"
 
-        self.telemetry = SquatTelemetry(
+        self.telemetry = LegRaiseTelemetry(
                 state=self.state,
-                legs_straight_ratio=legs_straight_ratio,
                 visibility_ok=visibility_ok,
-                hips_bologna=hips_below_knees,
-                hips_above_knee=hips_above_knees,
+                legs_above_hips_ratio=legs_above_hips_ratio,
+                legs_straight_ratio=legs_straight_ratio
             )
         return self.telemetry
 
 
-class SquatExercise(Exercise):
+class LegRaiseExercise(Exercise):
     def __init__(
         self,
-        name: str = "squat",
-        display_name: str = "Squat",
+        name: str = "leg_raises",
+        display_name: str = "Leg Raises",
         color: tuple[int, int, int] = (255, 255, 0),
         visibility_threshold: float = DEFAULT_VISIBILITY_THRESHOLD,
     ) -> None:
         super().__init__(name=name, display_name=display_name, color=color)
-        self._counter = SquatCounter(
+        self._counter = LegRaiseCounter(
             visibility_threshold=visibility_threshold,
         )
 
@@ -190,11 +195,10 @@ class SquatExercise(Exercise):
         y += 24
         self._draw_text(frame, f"State: {telemetry.state}", (right_x, y), align_right=True)
         y += 24
-        self._draw_text(frame, f"Legs straight: {round(telemetry.legs_straight_ratio, 2)}", (right_x, y), align_right=True)
+        self._draw_text(frame, f"Legs Above Hips Ratio: {telemetry.legs_above_hips_ratio:.2f}", (right_x, y), align_right=True)
         y += 24
-        self._draw_text(frame, f"Hips Above Knee: {telemetry.hips_above_knee}", (right_x, y), align_right=True)
+        self._draw_text(frame, f"Legs Straight Ratio: {telemetry.legs_straight_ratio:.2f}", (right_x, y), align_right=True)
         y += 24
-        self._draw_text(frame, f"Hips Below Knee: {telemetry.hips_bologna}", (right_x, y), align_right=True)
 
     def required_landmarks(self) -> Set[int]:
         return {
