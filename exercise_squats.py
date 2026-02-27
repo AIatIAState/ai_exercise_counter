@@ -39,7 +39,7 @@ def _visibility(landmarks, index: int) -> float:
     visibility = getattr(lm, "visibility", 1.0)
     presence = getattr(lm, "presence", 1.0)
     try:
-        return float(visibility) * float(presence)
+        return min(float(visibility), float(presence))
     except (TypeError, ValueError):
         return float(visibility)
 

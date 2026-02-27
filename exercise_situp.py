@@ -149,7 +149,7 @@ class SitUpCounter:
             state=self.state,
             on_ground=on_ground,
             head_above_knee_ratio=head_above_knee_ratio,
-            visibility_ok=False,
+            visibility_ok=True,
         )
         return self.telemetry
 

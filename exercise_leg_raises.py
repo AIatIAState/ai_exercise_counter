@@ -10,6 +10,7 @@ from exercise import Exercise
 DEFAULT_VISIBILITY_THRESHOLD = 0.60
 DEFAULT_LEGS_ABOVE_HIPS_RATIO = .6
 DEFAULT_STRAIGHT_LEGS_RATIO = .8
+EPSILON = 1e-4
 
 class PoseIdx:
     LEFT_HIP = 23
@@ -38,7 +39,7 @@ def _visibility(landmarks, index: int) -> float:
     visibility = getattr(lm, "visibility", 1.0)
     presence = getattr(lm, "presence", 1.0)
     try:
-        return float(visibility) * float(presence)
+        return min(float(visibility), float(presence))
     except (TypeError, ValueError):
         return float(visibility)
 
@@ -122,26 +123,34 @@ class LegRaiseCounter:
             return self.telemetry
 
 
-        # Starting State --> Ankles Below Knees --> Ankles Above KNees --> Increment Count --> BOHICA
-        left_lower_leg = left_ankle.y - left_knee.y
-        right_lower_leg = right_ankle.y - right_knee.y
-        left_upper_leg = left_knee.y - left_hip.y
-        right_upper_leg = right_knee.y - right_hip.y
-        left_lower_leg_above_hip = left_hip.y - left_knee.y
-        right_lower_leg_above_hip = right_hip.y - right_knee.y
-        if left_lower_leg_above_hip < 0 or right_lower_leg_above_hip < 0:
-            legs_above_hips_ratio = 0
-        else:
-            legs_above_hips_ratio = min(left_lower_leg_above_hip / left_lower_leg, right_lower_leg_above_hip / right_lower_leg)
+        # Starting State --> Straight Legs --> Knees above hips --> Increment Count --> BOHICA
+        left_lower_leg = abs(left_ankle.y - left_knee.y)
+        right_lower_leg = abs(right_ankle.y - right_knee.y)
+        left_upper_leg = abs(left_knee.y - left_hip.y)
+        right_upper_leg = abs(right_knee.y - right_hip.y)
+        left_lower_leg_above_hip = max(left_hip.y - left_knee.y,0)
+        right_lower_leg_above_hip = max(right_hip.y - right_knee.y,0)
+
+        legs_above_hips_ratio = min(left_lower_leg_above_hip / left_lower_leg, right_lower_leg_above_hip / right_lower_leg)
         legs_straight_ratio = min(right_upper_leg / right_lower_leg, left_upper_leg / left_lower_leg)
+        knees_below_hips = left_knee.y > left_hip.y and right_knee.y > right_hip.y
 
+        #Check for state transition (where left_upper leg y distance is almost 0)
+        if left_upper_leg < EPSILON or right_upper_leg < EPSILON:
+            self.telemetry = LegRaiseTelemetry(
+                state = self.state,
+                visibility_ok=True,
+                legs_above_hips_ratio=self.telemetry.legs_above_hips_ratio,
+                legs_straight_ratio=self.telemetry.legs_straight_ratio
+            )
+            return self.telemetry
 
-        if self.state == "init" and legs_straight_ratio > DEFAULT_STRAIGHT_LEGS_RATIO:
+        if self.state == "init" and legs_straight_ratio > DEFAULT_STRAIGHT_LEGS_RATIO and knees_below_hips:
             self.state = "down"
         elif self.state == "down" and legs_above_hips_ratio > DEFAULT_LEGS_ABOVE_HIPS_RATIO:
             self.state = "up"
             self.count += 1
-        elif self.state == "up" and legs_straight_ratio > DEFAULT_STRAIGHT_LEGS_RATIO:
+        elif self.state == "up" and legs_straight_ratio > DEFAULT_STRAIGHT_LEGS_RATIO and knees_below_hips:
             self.state = "down"
 
         self.telemetry = LegRaiseTelemetry(
@@ -186,9 +195,9 @@ class LegRaiseExercise(Exercise):
         y += 24
         self._draw_text(frame, f"State: {telemetry.state}", (right_x, y), align_right=True)
         y += 24
-        self._draw_text(frame, f"Legs Above Hips Ratio: {telemetry.legs_above_hips_ratio}", (right_x, y), align_right=True)
+        self._draw_text(frame, f"Legs Above Hips Ratio: {telemetry.legs_above_hips_ratio:.2f}", (right_x, y), align_right=True)
         y += 24
-        self._draw_text(frame, f"Legs Straight Ratio: {telemetry.legs_straight_ratio}", (right_x, y), align_right=True)
+        self._draw_text(frame, f"Legs Straight Ratio: {telemetry.legs_straight_ratio:.2f}", (right_x, y), align_right=True)
         y += 24
 
     def required_landmarks(self) -> Set[int]:
