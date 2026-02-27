@@ -30,7 +30,7 @@ from progam_state import ProgramState
 # Constants
 ####################################################
 
-DEFAULT_MODEL = (Path(__file__).resolve().parent / "models" / "pose_landmarker_lite.task")
+DEFAULT_MODEL = (Path(__file__).resolve().parent / "models" / "pose_landmarker_heavy.task")
 DEFAULT_CAMERA_INDEX = 0
 DEFAULT_MAX_POSES = 1
 DEFAULT_MIN_DETECTION = 0.5
