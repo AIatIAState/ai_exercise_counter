@@ -7,7 +7,7 @@ import numpy as np
 
 from exercise import Exercise
 
-DEFAULT_VISIBILITY_THRESHOLD = 0.75
+DEFAULT_VISIBILITY_THRESHOLD = 0.3
 DEFAULT_HEAD_ABOVE_KNEE_THRESHOLD = 1.6
 DEFAULT_HEAD_BELOW_KNEE_THRESHOLD = 1.0
 class PoseIdx:
@@ -149,7 +149,7 @@ class SitUpCounter:
             state=self.state,
             on_ground=on_ground,
             head_above_knee_ratio=head_above_knee_ratio,
-            visibility_ok=False,
+            visibility_ok=visibility_ok,
         )
         return self.telemetry
 

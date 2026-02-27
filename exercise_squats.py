@@ -7,7 +7,7 @@ import numpy as np
 
 from exercise import Exercise
 
-DEFAULT_VISIBILITY_THRESHOLD = 0.75
+DEFAULT_VISIBILITY_THRESHOLD = .2
 DEFAULT_UPPER_TO_LOWER_LEG_RATIO = .8
 
 
